@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Atham</title>
+<style>
+:root{--bg:#05070d;--text:#bfefff;--accent:#1590d6;--glow:#4fd2ff;--warn:#ffb4a8;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;overflow:hidden;display:flex;align-items:center;justify-content:center}
+#ball{width:120px;height:120px;border-radius:50%;cursor:pointer;background:radial-gradient(circle at 35% 35%,#8fe9ff,#1590d6 60%,#06324f);box-shadow:0 0 30px var(--accent)}
+#ball.listening{animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{transform:scale(1);box-shadow:0 0 30px var(--accent)}50%{transform:scale(1.25);box-shadow:0 0 70px var(--glow)}}
+#name{position:absolute;bottom:calc(env(safe-area-inset-bottom,0px) + 12%);letter-spacing:6px;font-size:20px;color:#8fe9ff}
+#corner{position:absolute;top:calc(env(safe-area-inset-top,0px) + 10px);right:10px;width:62%;max-height:45%;overflow:auto;font-size:14px;line-height:1.4;background:rgba(21,144,214,.12);border:1px solid var(--accent);border-radius:10px;padding:8px}
+#corner div{margin-bottom:4px}
+#corner .err{color:var(--warn)}
+#heard{opacity:.8;font-style:italic}
+a{color:var(--glow)}
+</style>
+</head>
+<body>
+<div id="corner"><div id="log"></div><div id="heard"></div><a id="wa" href="whatsapp://send" hidden>Tap here to open WhatsApp</a></div>
+<div id="ball" role="button" aria-label="Start listening"></div>
+<div id="name">ATHAM</div>
+<script>
+const ball=document.getElementById('ball'),log=document.getElementById('log'),heard=document.getElementById('heard'),wa=document.getElementById('wa');
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+let rec=null,on=false;
+
+function show(text,isErr){
+  const d=document.createElement('div');
+  d.textContent=text;
+  if(isErr)d.className='err';
+  log.appendChild(d);
+  while(log.children.length>5)log.removeChild(log.firstChild);
+}
+function say(m){
+  show('Atham: '+m);
+  try{speechSynthesis.cancel();speechSynthesis.speak(new SpeechSynthesisUtterance(m))}catch(e){}
+}
+const errors={
+  'not-allowed':'Microphone is blocked. Tap the icon left of the address bar, open Permissions, and allow Microphone.',
+  'service-not-allowed':'Voice recognition is blocked on this browser. Open this page in Chrome.',
+  'audio-capture':'No microphone was found.',
+  'network':'Voice recognition needs internet. Check your connection.',
+  'no-speech':'I did not hear anything. Try speaking again.'
+};
+function handle(cmd){
+  if(cmd.includes('open')&&cmd.includes('whatsapp')){
+    say('Opening WhatsApp');
+    wa.hidden=false;
+    window.location.href='whatsapp://send';
+  }else{
+    say('I heard: '+cmd+'. Chatting will be added in the next step.');
+  }
+}
+function start(){
+  if(!SR){show('This browser has no voice recognition. Open this page in Chrome.',true);return}
+  if(!window.isSecureContext){show('This page is not on a secure link, so the microphone is blocked.',true);return}
+  rec=new SR();
+  rec.continuous=true;
+  rec.interimResults=true;
+  rec.lang='en-IN';
+  rec.onstart=()=>{ball.classList.add('listening');show('Listening. Speak now.')};
+  rec.onresult=e=>{
+    let t='';
+    for(let i=e.resultIndex;i<e.results.length;i++)t+=e.results[i][0].transcript;
+    heard.textContent=t;
+    if(e.results[e.results.length-1].isFinal){heard.textContent='';show('You: '+t);handle(t.toLowerCase())}
+  };
+  rec.onerror=e=>{
+    show(errors[e.error]||('Error: '+e.error),true);
+    if(e.error!=='no-speech')on=false;
+  };
+  rec.onend=()=>{
+    ball.classList.remove('listening');
+    if(on)setTimeout(()=>{try{rec.start()}catch(_){}},300);
+  };
+  try{on=true;rec.start()}catch(e){on=false;show('Could not start: '+e.message,true)}
+}
+ball.addEventListener('click',()=>{
+  if(on){on=false;rec.stop();show('Stopped. Tap the ball to listen again.')}
+  else start();
+});
+show('Tap the ball to start.');
+</script>
+</body>
+</html>
